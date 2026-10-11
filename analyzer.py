@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 MAX_MESSAGE_LENGTH = 10_000
 
+
 _URL_PATTERN = re.compile(
     r"""(?ix)
     \b(?:
@@ -20,14 +21,27 @@ _URL_PATTERN = re.compile(
     )
     """
 )
+
+
 _URGENCY_PATTERN = re.compile(
-    r"\b(?:act\s+now|(?:act|respond|reply|click|confirm|verify|provide|send|pay|call|text)"
-    r"\s+immediately|urgent(?:ly)?|within\s+\d+\s*(?:minutes?|hours?)|"
-    r"final\s+notice|expires?\s+(?:today|soon)|account\s+(?:will\s+be\s+)?"
-    r"(?:suspended|locked|closed)|limited\s+time|last\s+chance|avoid\s+"
-    r"(?:suspension|closure))\b",
-    re.IGNORECASE,
+    r"\b(?:"
+    r"act\s+now|"
+    r"(?:act|respond|reply|click|confirm|verify|provide|send|pay|call|text)"
+    r"(?:\s+\w+){0,2}\s+immediately|"
+    r"urgent|"
+    r"within\s+\d+\s+(?:minutes?|hours?)|"
+    r"final\s+notice|"
+    r"expires?\s+(?:today|soon)|"
+    r"your\s+account\s+(?:is\s+)?(?:will\s+be\s+)?"
+    r"(?:suspended|locked|closed)|"
+    r"access\s+(?:will\s+be\s+)?suspended|"
+    r"limited\s+time|"
+    r"last\s+chance|"
+    r"avoid\s+(?:account\s+)?(?:suspension|closure)"
+    r")\b",
+    re.IGNORECASE
 )
+
 _CREDENTIAL_PATTERN = re.compile(
     r"\b(?:passwords?|passcodes?|one[- ]time\s+(?:password|codes?)|"
     r"verification\s+codes?|security\s+codes?|otps?|login\s+credentials?|"
@@ -48,17 +62,44 @@ _AUTHORITY_PATTERN = re.compile(
     r"(?:boss|manager|supervisor|executive|administrator|director|ceo|principal))\b",
     re.IGNORECASE,
 )
+
+
 _SECRECY_PATTERN = re.compile(
-    r"\b(?:do\s+not|don't|dont|never)\s+"
-    r"(?:tell|inform|notify|contact|discuss)\s+"
-    r"(?:anyone|anybody|everyone|(?:your|the)\s+"
-    r"(?:manager|supervisor|colleagues?|coworkers?|team))\b"
-    r"|\b(?:do\s+not|don't|dont|never)\s+share\s+with\s+"
-    r"(?:anyone|anybody|everyone|(?:your|the)\s+"
-    r"(?:manager|supervisor|colleagues?|coworkers?|team))\b"
-    r"|\bkeep\s+(?:this|it|the\s+request)\s+(?:secret|confidential)\b",
-    re.IGNORECASE,
+    r"\b(?:"
+    r"do\s+not|don't|never"
+    r")\s+(?:tell|inform|notify|contact|discuss|share)\s+"
+    r"(?:anyone|anybody|the\s+team|your\s+team|anyone\s+else)\b"
+    r"|"
+    r"\bkeep\s+(?:(?:this|it|the\s+request)\s+)?"
+    r"(?:request\s+)?(?:secret|confidential)\b"
+    r"|"
+    r"\bkeep\s+(?:this|it|the\s+request)\s+secret\b"
+    r"|"
+    r"\b(?:keep|treat)\s+(?:this|the\s+matter|the\s+information)"
+    r"\s+(?:strictly\s+)?confidential\b",
+    re.IGNORECASE
 )
+_SECRECY_PATTERN = re.compile(
+    r"\b(?:"
+    r"do\s+not|don't|never"
+    r")\s+(?:tell|inform|notify|contact|discuss|share)\s+"
+    r"(?:anyone|anybody|everyone|anyone\s+else|"
+    r"your\s+manager|the\s+manager|your\s+team|the\s+team|"
+    r"your\s+boss|the\s+boss|your\s+supervisor|"
+    r"the\s+supervisor|your\s+colleagues|the\s+team)\b"
+    r"|"
+    r"\bkeep\s+(?:(?:this|it|the\s+request)\s+)?"
+    r"(?:request\s+)?(?:secret|confidential)\b"
+    r"|"
+    r"\bkeep\s+(?:this|it|the\s+request)\s+secret\b"
+    r"|"
+    r"\b(?:keep|treat)\s+(?:this|the\s+matter|the\s+information)"
+    r"\s+(?:strictly\s+)?confidential\b",
+    re.IGNORECASE
+)
+
+
+
 _THREAT_PATTERN = re.compile(
     r"\b(?:(?:your\s+)?(?:job|career|life)"
     r"(?:\s+and\s+(?:your\s+)?(?:job|career|life))?\s+"
@@ -102,18 +143,22 @@ _REQUEST_VERB_PATTERN = re.compile(
 )
 
 # Avoid treating common safety warnings as requests to disclose credentials.
+
 _CREDENTIAL_WARNING_PATTERN = re.compile(
-    r"\b(?:never|do\s+not|don't|dont|should\s+not|shouldn't)\s+"
-    r"(?:ever\s+)?(?:share|send|provide|give|reveal|disclose|tell|enter)\b"
-    r".{0,80}\b(?:passwords?|passcodes?|otps?|verification\s+codes?|"
-    r"security\s+codes?|one[- ]time\s+(?:password|codes?)|"
-    r"login\s+credentials?|sign[- ]in\s+details?)\b"
-    r"|\b(?:passwords?|passcodes?|otps?|verification\s+codes?|"
-    r"security\s+codes?|one[- ]time\s+(?:password|codes?))\b"
-    r".{0,80}\b(?:never|do\s+not|don't|dont|should\s+not|shouldn't)\s+"
-    r"(?:share|send|provide|give|reveal|disclose|tell)\b",
-    re.IGNORECASE,
+    r"\b(?:"
+    r"never\s+(?:to\s+)?share|"
+    r"do\s+not\s+share|"
+    r"don't\s+share|"
+    r"never\s+(?:give|send|provide|reveal|disclose|enter)|"
+    r"do\s+not\s+(?:give|send|provide|reveal|disclose|enter)|"
+    r"don't\s+(?:give|send|provide|reveal|disclose|enter)"
+    r")\b"
+    r".{0,80}\b(?:passwords?|passcodes?|verification\s+codes?|"
+    r"security\s+codes?|one[- ]time\s+passwords?|OTPs?|"
+    r"login\s+credentials|sign[- ]in\s+details)\b",
+    re.IGNORECASE
 )
+
 _TRAILING_PUNCTUATION = ".,!?;:)]}"
 _SHORTENER_HOSTS = {"bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "ow.ly"}
 
@@ -166,20 +211,29 @@ def _parse_url(candidate: str) -> tuple[str | None, str | None]:
     return hostname.lower().rstrip("."), None
 
 
+
 def _url_indicator(candidate: str) -> tuple[str, str, int] | None:
     raw = _clean_url(candidate)
     hostname, malformed = _parse_url(raw)
+
     if malformed:
         return ("Unusual link format", malformed, 16)
+
     assert hostname is not None
 
     reasons: list[str] = []
     points = 0
-    scheme = urlsplit(raw if re.match(r"(?i)^https?://", raw) else f"https://{raw}").scheme.lower()
+
+    parsed = urlsplit(
+        raw if re.match(r"(?i)^https?://", raw) else f"https://{raw}"
+    )
+    scheme = parsed.scheme.lower()
 
     try:
         ipaddress.ip_address(hostname.strip("[]"))
-        reasons.append("the address uses a raw IP address instead of a recognizable domain")
+        reasons.append(
+            "the address uses a raw IP address instead of a recognizable domain"
+        )
         points += 24
     except ValueError:
         pass
@@ -188,12 +242,23 @@ def _url_indicator(candidate: str) -> tuple[str, str, int] | None:
         reasons.append("it uses unencrypted HTTP rather than HTTPS")
         points += 12
 
-    if "xn--" in hostname:
-        reasons.append("the domain contains an encoded internationalized name that can disguise look-alike characters")
+    # Convert Unicode domain names to ASCII IDN form before checking xn--.
+    try:
+        ascii_hostname = hostname.encode("idna").decode("ascii").lower()
+    except (UnicodeError, ValueError):
+        ascii_hostname = hostname.lower()
+
+    if "xn--" in ascii_hostname:
+        reasons.append(
+            "the domain contains an encoded internationalized name "
+            "that can disguise look-alike characters"
+        )
         points += 22
 
-    if hostname in _SHORTENER_HOSTS:
-        reasons.append("it uses a link-shortening service, which hides the final destination")
+    if hostname.lower() in _SHORTENER_HOSTS:
+        reasons.append(
+            "it uses a link-shortening service, which hides the final destination"
+        )
         points += 14
 
     labels = hostname.split(".")
@@ -202,12 +267,17 @@ def _url_indicator(candidate: str) -> tuple[str, str, int] | None:
         points += 12
 
     if "@" in raw:
-        reasons.append("it includes an @ sign, which can obscure the actual destination")
+        reasons.append(
+            "it includes an @ sign, which can obscure the actual destination"
+        )
         points += 20
 
     if not reasons:
         return None
-    explanation = "The link is worth checking because " + "; ".join(reasons) + "."
+
+    explanation = (
+        "The link is worth checking because " + "; ".join(reasons) + "."
+    )
     return ("Suspicious link characteristics", explanation, min(points, 32))
 
 
@@ -261,6 +331,7 @@ def analyze_message(message: str) -> dict[str, object]:
             28,
         )
 
+    
     if (
         _CREDENTIAL_PATTERN.search(message)
         and (
@@ -275,6 +346,7 @@ def analyze_message(message: str) -> dict[str, object]:
             "The message asks for passwords, sign-in details, or a verification code. Legitimate support teams should not ask you to share these in a message.",
             32,
         )
+
 
     if _SENSITIVE_PATTERN.search(message) and _REQUEST_VERB_PATTERN.search(message):
         _add_indicator(
