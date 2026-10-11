@@ -337,6 +337,37 @@ class AnalyzerTests(unittest.TestCase):
 
         )
 
+    
+def test_security_advice_is_not_flagged_as_credential_request(self):
+    message = (
+        "Our IT team reminds everyone never to share passwords "
+        "or verification codes."
+    )
+    result = analyze_message(message)
+    self.assertNotIn(
+        "Request for passwords or verification codes",
+        result["indicators"]
+    )
+
+
+def test_locked_account_with_password_request_is_high_risk(self):
+    message = (
+        "Your account is locked. Verify your password immediately "
+        "or access will be suspended."
+    )
+    result = analyze_message(message)
+    self.assertGreaterEqual(result["score"], 50)
+
+
+def test_secret_urgent_payment_request_is_flagged(self):
+    message = (
+        "The manager instructed me to keep this request secret "
+        "and send the payment immediately."
+    )
+    result = analyze_message(message)
+    self.assertTrue(result["indicators"])
+
+
 
 
 
