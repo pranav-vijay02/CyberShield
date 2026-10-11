@@ -21,7 +21,7 @@ _URL_PATTERN = re.compile(
     """
 )
 _URGENCY_PATTERN = re.compile(
-   r"\b(?:act\s+now|(?:act|respond|reply|click|confirm|verify|provide|send|pay|call|text)"
+    r"\b(?:act\s+now|(?:act|respond|reply|click|confirm|verify|provide|send|pay|call|text)"
     r"\s+immediately|urgent(?:ly)?|within\s+\d+\s*(?:minutes?|hours?)|"
     r"final\s+notice|expires?\s+(?:today|soon)|account\s+(?:will\s+be\s+)?"
     r"(?:suspended|locked|closed)|limited\s+time|last\s+chance|avoid\s+"
@@ -38,6 +38,47 @@ _DIRECT_PASSWORD_REQUEST_PATTERN = re.compile(
     r"\b(?:i|we)\s+need\s+(?:your|the)\s+passwords?\b",
     re.IGNORECASE,
 )
+_AUTHORITY_PATTERN = re.compile(
+    r"\b(?:(?:(?:the|your|my|our)\s+)?"
+    r"(?:boss(?:es)?|managers?|supervisors?|executives?|administrators?|"
+    r"directors?|ceos?|principals?)\s+"
+    r"(?:wanted|wants|asked|asks|told|ordered|instructed|demanded|directed|"
+    r"said|says|requested|required|requires|expected|expects)"
+    r"|(?:from|on\s+behalf\s+of)\s+(?:(?:the|your|a)\s+)?"
+    r"(?:boss|manager|supervisor|executive|administrator|director|ceo|principal))\b",
+    re.IGNORECASE,
+)
+_SECRECY_PATTERN = re.compile(
+    r"\b(?:do\s+not|don't|dont|never)\s+"
+    r"(?:tell|inform|notify|contact|discuss)\s+"
+    r"(?:anyone|anybody|everyone|(?:your|the)\s+"
+    r"(?:manager|supervisor|colleagues?|coworkers?|team))\b"
+    r"|\b(?:do\s+not|don't|dont|never)\s+share\s+with\s+"
+    r"(?:anyone|anybody|everyone|(?:your|the)\s+"
+    r"(?:manager|supervisor|colleagues?|coworkers?|team))\b"
+    r"|\bkeep\s+(?:this|it|the\s+request)\s+(?:secret|confidential)\b",
+    re.IGNORECASE,
+)
+_THREAT_PATTERN = re.compile(
+    r"\b(?:(?:your\s+)?(?:job|career|life)"
+    r"(?:\s+and\s+(?:your\s+)?(?:job|career|life))?\s+"
+    r"(?:could\s+be\s+)?at\s+stake|"
+    r"you(?:\s+will|['’]ll)\s+be\s+fired|"
+    r"(?:lose|losing)\s+your\s+job|fire\s+you|"
+    r"disciplinary\s+action|severe\s+consequences?|"
+    r"(?:harm|hurt|injure)\s+(?:you|your\s+family))\b",
+    re.IGNORECASE,
+)
+_TIGHT_DEADLINE_PATTERN = re.compile(
+    r"\b(?:at\s+)?\d{1,2}(?::\d{2})?\s*"
+    r"(?:a\.m\.|p\.m\.|am\b|pm\b)\s+sharp\b"
+    r"|\b(?:by|before|no\s+later\s+than)\s+"
+    r"(?:\d{1,2}(?::\d{2})?\s*(?:a\.m\.|p\.m\.|am\b|pm\b)|"
+    r"today|tonight|tomorrow|end\s+of\s+day)"
+    r"(?=\s|[.,!?;:]|$)",
+    re.IGNORECASE,
+)
+
 _SENSITIVE_PATTERN = re.compile(
     r"\b(?:social\s+security(?:\s+number)?|ssn|date\s+of\s+birth|"
     r"bank\s+(?:account|details|information)|card\s+(?:number|details)|"
@@ -48,12 +89,29 @@ _SENSITIVE_PATTERN = re.compile(
 _MONEY_PATTERN = re.compile(
     r"\b(?:wire\s+transfer|gift\s+cards?|crypto(?:currency)?|bitcoin|"
     r"payment\s+(?:is\s+)?(?:due|required)|pay\s+(?:now|immediately)|"
-    r"claim\s+(?:your\s+)?(?:prize|reward|refund)|unexpected\s+refund)\b",
+    r"claim\s+(?:your\s+)?(?:prize|reward|refund)|unexpected\s+refund|"
+    r"(?:won|win|winning|winner\s+of)\s+(?:a\s+)?(?:prize|reward|gift|voucher)|"
+    r"claim\s+(?:it|your\s+(?:prize|reward|gift|voucher))\s+now)\b",
     re.IGNORECASE,
 )
 _REQUEST_VERB_PATTERN = re.compile(
     r"\b(?:click|confirm|provide|send|share|submit|enter|reply|verify|"
-    r"update|reset|call|text|email|visit|log\s*in|sign\s*in)\b",
+    r"update|reset|call|text|email|visit|log\s*in|sign\s*in|"
+    r"claim|won|win|winning)\b",
+    re.IGNORECASE,
+)
+
+# Avoid treating common safety warnings as requests to disclose credentials.
+_CREDENTIAL_WARNING_PATTERN = re.compile(
+    r"\b(?:never|do\s+not|don't|dont|should\s+not|shouldn't)\s+"
+    r"(?:ever\s+)?(?:share|send|provide|give|reveal|disclose|tell|enter)\b"
+    r".{0,80}\b(?:passwords?|passcodes?|otps?|verification\s+codes?|"
+    r"security\s+codes?|one[- ]time\s+(?:password|codes?)|"
+    r"login\s+credentials?|sign[- ]in\s+details?)\b"
+    r"|\b(?:passwords?|passcodes?|otps?|verification\s+codes?|"
+    r"security\s+codes?|one[- ]time\s+(?:password|codes?))\b"
+    r".{0,80}\b(?:never|do\s+not|don't|dont|should\s+not|shouldn't)\s+"
+    r"(?:share|send|provide|give|reveal|disclose|tell)\b",
     re.IGNORECASE,
 )
 _TRAILING_PUNCTUATION = ".,!?;:)]}"
@@ -115,8 +173,6 @@ def _url_indicator(candidate: str) -> tuple[str, str, int] | None:
         return ("Unusual link format", malformed, 16)
     assert hostname is not None
 
-    ascii_hostname = hostname.encode("idna").decode("ascii").lower()
-
     reasons: list[str] = []
     points = 0
     scheme = urlsplit(raw if re.match(r"(?i)^https?://", raw) else f"https://{raw}").scheme.lower()
@@ -132,7 +188,7 @@ def _url_indicator(candidate: str) -> tuple[str, str, int] | None:
         reasons.append("it uses unencrypted HTTP rather than HTTPS")
         points += 12
 
-    if "xn--" in ascii_hostname:
+    if "xn--" in hostname:
         reasons.append("the domain contains an encoded internationalized name that can disguise look-alike characters")
         points += 22
 
@@ -170,17 +226,48 @@ def analyze_message(message: str) -> dict[str, object]:
 
     indicators: list[dict[str, object]] = []
 
-    if _URGENCY_PATTERN.search(message):
+    has_authority = bool(_AUTHORITY_PATTERN.search(message))
+    has_secrecy = bool(_SECRECY_PATTERN.search(message))
+    has_threat = bool(_THREAT_PATTERN.search(message))
+    has_pressured_deadline = bool(
+        _TIGHT_DEADLINE_PATTERN.search(message) and (has_secrecy or has_threat)
+    )
+    if _URGENCY_PATTERN.search(message) or has_pressured_deadline:
         _add_indicator(
             indicators,
             "Pressure to act quickly",
             "Urgent deadlines or threats can be used to stop people from checking a request carefully.",
             18,
         )
+        if has_authority:
+            _add_indicator(
+                indicators,
+                "Pressure from a claimed authority",
+                "A message claiming to come from a boss or other authority can pressure someone to comply, especially when paired with secrecy or threats.",
+                10,
+            )
+    if has_secrecy:
+        _add_indicator(
+            indicators,
+            "Pressure to keep a request secret",
+            "Instructions to hide a request from other people can prevent independent checking.",
+            12,
+        )
+    if has_threat:
+        _add_indicator(
+            indicators,
+            "Threats or intimidation",
+            "Threats of firing, punishment, or harm can be used to pressure someone into acting.",
+            28,
+        )
 
-    if _CREDENTIAL_PATTERN.search(message) and (
-        _REQUEST_VERB_PATTERN.search(message)
-        or _DIRECT_PASSWORD_REQUEST_PATTERN.search(message)
+    if (
+        _CREDENTIAL_PATTERN.search(message)
+        and (
+            _REQUEST_VERB_PATTERN.search(message)
+            or _DIRECT_PASSWORD_REQUEST_PATTERN.search(message)
+        )
+        and not _CREDENTIAL_WARNING_PATTERN.search(message)
     ):
         _add_indicator(
             indicators,
